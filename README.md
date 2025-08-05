@@ -1,0 +1,2 @@
+# n32l40x_freertos
+运行在n32l40x系列MCU，带FreeRTOS的demo代码
