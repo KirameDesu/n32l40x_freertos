@@ -34,6 +34,9 @@
  */
 #include "main.h"
 
+#include <string.h>
+#include <stdio.h>
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "timers.h"
@@ -49,6 +52,7 @@ TaskHandle_t start_uart_task_handle;
 TaskHandle_t start_uart1_task_handle = NULL;
 TaskHandle_t start_uart2_task_handle = NULL;
 
+TaskHandle_t cpu_monitor_task_handle = NULL;
 
 //======================================================================
 //                          LED Task
@@ -77,7 +81,7 @@ void start_led_task(void *pv)
     LedInit(PORT_GROUP1, LED1_PIN);
     LedInit(PORT_GROUP2, LED2_PIN | LED3_PIN);
     /*Turn on Led1*/
-    LedOn(PORT_GROUP1, LED1_PIN);
+    LedOff(PORT_GROUP1, LED1_PIN);
 
 	xTaskCreate(led1_task,"led1",50,NULL,tskIDLE_PRIORITY + 2,&led1_task_handle);
 	xTaskCreate(led2_task,"led2",50,NULL,tskIDLE_PRIORITY + 2,&led2_task_handle);
@@ -116,12 +120,55 @@ void start_uart_task(void *pv)
 	vTaskDelete(start_uart_task_handle);
 }
 
+
+//======================================================================
+//                          CPU Monitor Task
+//======================================================================
+void cpu_monitor_task(void *pv)
+{
+    char taskStats[512];
+    size_t offset = 0;
+    const size_t bufSize = sizeof(taskStats);
+
+    while (1)
+    {
+        offset = snprintf(taskStats, bufSize, "Task Monitor:\n");
+        // 判断是否还有空间写入任务统计信息
+        if (offset < bufSize)
+        {
+            vTaskGetRunTimeStats(taskStats + offset);
+
+            // 可选：再次检查长度，如果超出，截断末尾添加提醒
+            if (strlen(taskStats) >= bufSize - 1)
+            {
+                strcpy(taskStats + bufSize - 20, "\n[Truncated...]\n");
+            }
+        }
+        else
+        {
+            // 缓冲区太小，直接输出错误信息
+            strcpy(taskStats, "Buffer overflow: header too large.\n");
+        }
+
+        Uart_Send(USARTy, taskStats, strlen(taskStats));
+
+        vTaskDelay(pdMS_TO_TICKS(5000)); // 每 5 秒打印一次
+    }
+}
+
+void start_cpu_monitor_task(void *pvParameters)
+{
+    xTaskCreate(cpu_monitor_task, "cpu_monitor", 512, NULL, tskIDLE_PRIORITY + 1, &cpu_monitor_task_handle);
+
+    vTaskDelete(NULL);
+}
+
 /**
  * @brief  Main program.
  */
 int main(void)
 {
-    BaseType_t xReturn[2];
+    BaseType_t xReturn[3];
     int i;
     
     // 配置优先级分组
@@ -142,7 +189,16 @@ int main(void)
                         tskIDLE_PRIORITY + 1,
                         &start_uart_task_handle);
 
-    for(i=0; i<2; i++)
+#if ENABLE_CPU_MONITOR
+    xReturn[2] = xTaskCreate(start_cpu_monitor_task,
+                        "startCPUMonitor",
+                        64,
+                        NULL,
+                        tskIDLE_PRIORITY + 1,
+                        NULL);
+#endif
+
+    for(i=0; i<3; i++)
     {
         if(pdPASS != xReturn[i])
             return -1;

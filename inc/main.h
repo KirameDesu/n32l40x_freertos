@@ -41,6 +41,10 @@ extern "C" {
 
 #include "n32l40x.h"
 
+
+// 是否启用 CPU 使用率监控任务
+#define ENABLE_CPU_MONITOR 1
+
 /*Led1-PB0,Led2-PB1,Led3-PE0,Led4-PE1,Led5-PE5*/
 #define PORT_GROUP1 GPIOA
 #define PORT_GROUP2 GPIOB

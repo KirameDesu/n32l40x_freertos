@@ -1,7 +1,6 @@
 #include "uart.h"
 
 #include <string.h>
-#include "ringbuffer.h"
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"
@@ -351,8 +350,8 @@ void USART2_IRQHandler(void)
 
         DMA_EnableChannel(USARTz_Rx_DMA_Channel, DISABLE);
 
-        // 通知处理任务（这里用信号量）
-        xSemaphoreGiveFromISR(xUsart2IdleSemaphore, &xHigherPriorityTaskWoken);
+        // 通知处理任务（这里用信号量）暂时屏蔽
+        //xSemaphoreGiveFromISR(xUsart2IdleSemaphore, &xHigherPriorityTaskWoken);
 
         // 如果有高优先级任务被唤醒，立即切换
         portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
