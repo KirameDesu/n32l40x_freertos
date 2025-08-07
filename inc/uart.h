@@ -5,7 +5,7 @@
 
 
 #define DMABufferSize1      1024
-#define DMABufferSize2      512
+#define DMABufferSize2      1024
 
 
 #define _USART1_USART2_
@@ -29,6 +29,7 @@
 #define USARTy_Rx_DMA_FLAG    DMA_FLAG_TC5
 #define USARTy_Tx_DMA_REMAP   DMA_REMAP_USART1_TX
 #define USARTy_Rx_DMA_REMAP   DMA_REMAP_USART1_RX
+#define USARTy_IRQn           USART1_IRQn
 
 #define USARTz                USART2
 #define USARTz_GPIO           GPIOA
@@ -46,6 +47,7 @@
 #define USARTz_Rx_DMA_FLAG    DMA_FLAG_TC6
 #define USARTz_Tx_DMA_REMAP   DMA_REMAP_USART2_TX
 #define USARTz_Rx_DMA_REMAP   DMA_REMAP_USART2_RX
+#define USARTz_IRQn           USART2_IRQn
 #endif
 
 #ifdef _USART3_UART4_
@@ -120,7 +122,19 @@
 #define USARTz_Rx_DMA_REMAP   DMA_REMAP_UART5_RX
 #endif
 
+// 消息队列
+#define UART_MSG_MAX_LEN   DMABufferSize2
+#define UART_QUEUE_LENGTH  3
+typedef struct
+{
+    uint8_t data[20];
+    uint16_t length;
+} UartMsg_t;
+
+
 void Uart_init(void);
 void Uart_Send(USART_Module* USARTx, const char* pData, uint16_t size);
+void vUsart2RxProcessTask(void *pv);
+void Uart_WaitRecevComplete(USART_Module* USARTx);
 
 #endif // UART_H

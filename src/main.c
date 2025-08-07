@@ -49,6 +49,7 @@ TaskHandle_t start_uart_task_handle;
 TaskHandle_t start_uart1_task_handle = NULL;
 TaskHandle_t start_uart2_task_handle = NULL;
 
+
 //======================================================================
 //                          LED Task
 //======================================================================
@@ -74,12 +75,12 @@ void start_led_task(void *pv)
 {
     /* Initialize Led1~Led5 as output pushpull mode*/
     LedInit(PORT_GROUP1, LED1_PIN);
-    LedInit(PORT_GROUP2, LED2_PIN | LED3_PIN | LED4_PIN | LED5_PIN);
+    LedInit(PORT_GROUP2, LED2_PIN | LED3_PIN);
     /*Turn on Led1*/
     LedOn(PORT_GROUP1, LED1_PIN);
 
-	xTaskCreate(led1_task,"led1",50,NULL,2,&led1_task_handle);
-	xTaskCreate(led2_task,"led2",50,NULL,3,&led2_task_handle);
+	xTaskCreate(led1_task,"led1",50,NULL,tskIDLE_PRIORITY + 2,&led1_task_handle);
+	xTaskCreate(led2_task,"led2",50,NULL,tskIDLE_PRIORITY + 2,&led2_task_handle);
 
 	vTaskDelete(start_led_task_handle);
 }
@@ -90,18 +91,14 @@ void start_led_task(void *pv)
 //======================================================================
 void uart1_task(void *pv)
 {
-	while (1)
-	{
-        Uart_Send(USARTy, "This is USARTy task.\r\n", 22);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-	}
+    Uart_WaitRecevComplete(USARTz);
 }
 
 void uart2_task(void *pv)
 {
 	while (1)
 	{
-        Uart_Send(USARTz, "This is USARTz task.\r\n", 22);
+        //Uart_Send(USARTz, "This is USARTz task.\r\n", 22);
 		vTaskDelay(pdMS_TO_TICKS(2000));
 	}
 }
@@ -110,8 +107,11 @@ void start_uart_task(void *pv)
 {
     /* Initialize Led1~Led5 as output pushpull mode*/
     Uart_init();
-    xTaskCreate(uart1_task,"uart1",50,NULL,2,&led1_task_handle);
-	xTaskCreate(uart2_task,"uart2",50,NULL,3,&led2_task_handle);
+    
+    xTaskCreate(uart1_task,"uart1",50,NULL,tskIDLE_PRIORITY + 2,&led1_task_handle);
+	xTaskCreate(uart2_task,"uart2",50,NULL,tskIDLE_PRIORITY + 2,&led2_task_handle);
+    // 接收任务
+    xTaskCreate(vUsart2RxProcessTask, "uart2_rx", 512, NULL, tskIDLE_PRIORITY + 3, NULL);
 
 	vTaskDelete(start_uart_task_handle);
 }
@@ -121,30 +121,60 @@ void start_uart_task(void *pv)
  */
 int main(void)
 {
-    BaseType_t xReturn = pdPASS;/* 定义一个创建信息返回值，默认为pdPASS */
+    BaseType_t xReturn[2];
+    int i;
+    
+    // 配置优先级分组
+    NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 
     // LED TASK
-    xReturn = xTaskCreate(start_led_task,
+    xReturn[0] = xTaskCreate(start_led_task,
                         "startLed",
                         64,
                         NULL,
-                        1,
+                        tskIDLE_PRIORITY + 1,
                         &start_led_task_handle);
     // UART TASK
-    xReturn = xTaskCreate(start_uart_task,
+    xReturn[1] = xTaskCreate(start_uart_task,
                         "startUart",
                         64,
                         NULL,
-                        1,
+                        tskIDLE_PRIORITY + 1,
                         &start_uart_task_handle);
 
-    if(pdPASS == xReturn)
-        vTaskStartScheduler();   /* 启动任务，开启调度 */
-    else
-        return -1;
+    for(i=0; i<2; i++)
+    {
+        if(pdPASS != xReturn[i])
+            return -1;
+    }
+    vTaskStartScheduler();   /* 启动任务，开启调度 */
 
     while(1);   /* 正常不会执行到这里 */
 }
-/**
- * @}
- */
+
+
+// 堆空间不足时会自动调用此函数
+void vApplicationMallocFailedHook(void)
+{
+    volatile int i;
+    // 可以打断点调试，或者重启系统等
+    taskDISABLE_INTERRUPTS();
+    while (1)
+    {
+        LedBlink(PORT_GROUP1, LED1_PIN);
+		for (i = 0; i < 500000; ++i);  // 粗略延时
+    }
+}
+
+// 栈空间不足时会自动调用此函数
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+    volatile int i;
+    // 栈溢出时调用，可以放断点调试
+    taskDISABLE_INTERRUPTS();
+    while (1)
+    {
+        LedBlink(PORT_GROUP1, LED1_PIN);
+		for (i = 0; i < 500000; ++i);  // 粗略延时
+    }
+}
